@@ -1,0 +1,176 @@
+Metadata-Version: 2.4
+Name: ckd-risk
+Version: 0.1.0
+Summary: Chronic kidney disease risk prediction API with SHAP explanations
+Author: Md Sharifuzzaman
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: scikit-learn<2,>=1.5
+Requires-Dist: pandas>=2.2
+Requires-Dist: numpy>=1.26
+Requires-Dist: shap>=0.46
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: pydantic>=2.7
+Requires-Dist: joblib>=1.4
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: httpx>=0.27; extra == "dev"
+Requires-Dist: ruff>=0.6; extra == "dev"
+Requires-Dist: mlflow>=2.16; extra == "dev"
+Requires-Dist: ucimlrepo>=0.0.7; extra == "dev"
+Dynamic: license-file
+
+# Clinical Risk API: Chronic Kidney Disease
+
+[![CI](https://github.com/YOUR_USERNAME/clinical-risk-api/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/clinical-risk-api/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+A REST API that predicts **chronic kidney disease (CKD) risk** from 24 routine clinical measurements and **explains every prediction with SHAP**, so a clinician can see *why* the model flagged a patient.
+
+It turns the stacking ensemble from my AIAI 2025 paper ([Springer, DOI 10.1007/978-3-031-96235-6_15](https://doi.org/10.1007/978-3-031-96235-6_15)) into a tested, containerized service.
+
+> Research and portfolio project. **Not a medical device. Not for clinical decisions.**
+
+## Highlights
+
+- **Stacking ensemble**: logistic regression + naive Bayes + gradient boosting, meta-learner logistic regression.
+- **Leakage-free pipeline**: imputation, scaling and encoding live inside one scikit-learn `Pipeline`, fitted on training folds only.
+- **Explainable**: `/explain` returns per-feature SHAP contributions that add up to the predicted probability, and flags which inputs were missing and imputed.
+- **Handles missing labs**: every input is optional, as in real records.
+- **Production basics**: FastAPI with input validation, Docker multi-stage build, health check, request timing, 17 pytest tests, GitHub Actions CI, optional MLflow tracking.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[UCI CKD data<br/>400 patients, 24 features] --> B[clean.py<br/>fix tabs, '?', types]
+    B --> C[train.py<br/>stratified split, 5-fold CV<br/>4 models compared]
+    C --> D[(model.joblib<br/>pipeline + SHAP background<br/>+ metrics)]
+    C -. optional .-> M[MLflow]
+    D --> E[FastAPI service]
+    E --> F[/predict/]
+    E --> G[/predict/batch/]
+    E --> H[/explain<br/>SHAP/]
+    E --> I[/model/info, /health/]
+```
+
+## Quickstart
+
+```bash
+git clone https://github.com/YOUR_USERNAME/clinical-risk-api.git
+cd clinical-risk-api
+docker compose up --build        # trains the model during the build, serves on :8000
+```
+
+Open http://localhost:8000/docs for interactive API docs.
+
+Without Docker:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+make install      # pip install -e ".[dev]"
+make train        # downloads UCI data, trains, writes artifacts/model.joblib + metrics.json
+make serve        # http://localhost:8000/docs
+make test         # 17 tests, no real data needed
+```
+
+## Example
+
+```bash
+curl -X POST "http://localhost:8000/explain?top_k=3" \
+  -H "Content-Type: application/json" \
+  -d '{"age": 60, "serum_creatinine": 4.5, "haemoglobin": 9.0, "hypertension": "yes", "specific_gravity": 1.010}'
+```
+
+```json
+{
+  "ckd_probability": 0.97,
+  "prediction": "ckd",
+  "risk_level": "high",
+  "base_value": 0.62,
+  "contributions": [
+    {"feature": "serum_creatinine", "value": 4.5, "imputed": false, "shap_value": 0.14},
+    {"feature": "specific_gravity", "value": 1.01, "imputed": false, "shap_value": 0.11},
+    {"feature": "haemoglobin", "value": 9.0, "imputed": false, "shap_value": 0.07}
+  ]
+}
+```
+*(Illustrative output. Run it yourself for real numbers.)*
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/predict` | POST | CKD probability, label, risk level, list of imputed inputs |
+| `/predict/batch` | POST | Up to 500 patients per request |
+| `/explain?top_k=10` | POST | Prediction + top SHAP contributions |
+| `/model/info` | GET | Model version, training date, CV and test metrics |
+| `/health` | GET | Liveness check |
+
+## Results
+
+Stratified 80/20 split (random_state=42); 5-fold stratified CV on the training set; the test set is scored once.
+
+| Model | CV ROC AUC | CV balanced acc. | CV F1 |
+| --- | --- | --- | --- |
+| Logistic regression | _run `make train`_ | | |
+| Naive Bayes | | | |
+| Gradient boosting | | | |
+| **Stacking** | | | |
+
+**Stacking, held-out test set:** accuracy _, balanced accuracy _, recall _, ROC AUC _, Brier _.
+
+Numbers come from `artifacts/metrics.json`. With only 400 patients from one hospital, near-perfect scores are expected and do **not** show the model generalizes; external validation is needed.
+
+## What changed from the paper notebook
+
+| Notebook | This repo |
+| --- | --- |
+| Imputation and encoding on the full dataset before splitting | Inside the pipeline, fitted on training folds only (no leakage) |
+| `LabelEncoder` per column | `OrdinalEncoder` with fixed categories, same at train and serve time |
+| Random-sample imputation (not reproducible) | Median / mode imputation, seeded |
+| Accuracy-focused | Balanced accuracy, recall, ROC AUC, Brier score, CV mean ± std |
+| Notebook only | Package, API, tests, Docker, CI |
+
+## Project structure
+
+```
+src/ckd_risk/
+  features.py   feature schema, column mapping, units
+  data.py       cleaning of the raw UCI / Kaggle files
+  model.py      preprocessing + stacking pipeline
+  train.py      CV comparison, test evaluation, saving, MLflow
+  explain.py    SHAP permutation explainer
+  schemas.py    Pydantic request/response models
+  api.py        FastAPI app
+scripts/        data download, synthetic data for tests
+tests/          data, model and API tests
+```
+
+## Limitations
+
+- 400 patients from a single hospital in India (2015); not representative of other populations.
+- SHAP values describe the model, not causes of disease.
+- Imputed values can drive a prediction; the `imputed` flag in `/explain` makes this visible.
+
+## Data and citation
+
+Rubini, L., Soundarapandian, P., & Eswaran, P. (2015). *Chronic Kidney Disease* [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5G020 (CC BY 4.0)
+
+```bibtex
+@inproceedings{sharifuzzaman2025ckd,
+  title     = {Optimized Machine Learning Models and Stacking Hybrid Approach for Chronic Kidney Disease Prediction},
+  author    = {Sharifuzzaman, M. and Fahad, N. and Rabbi, R. I. and Jamal, S. R. and Tusher, E. H. and Hossen, M. J. and Ullah, M. S. and Islam, M. N.},
+  booktitle = {Artificial Intelligence Applications and Innovations (AIAI 2025)},
+  publisher = {Springer},
+  year      = {2025},
+  doi       = {10.1007/978-3-031-96235-6_15}
+}
+```
+
+## Author
+
+**Md Sharifuzzaman**: ML engineer and researcher in explainable AI for healthcare.
+[LinkedIn](#) · [Google Scholar](#) · [Website](#)
