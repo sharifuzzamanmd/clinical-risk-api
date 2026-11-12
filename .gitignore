@@ -17,3 +17,5 @@ data/*
 .DS_Store
 _old/
 *.zip
+
+*.egg-info/

@@ -1,6 +1,6 @@
 # Clinical Risk API: Chronic Kidney Disease
 
-[![CI](https://github.com/YOUR_USERNAME/clinical-risk-api/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/clinical-risk-api/actions/workflows/ci.yml)
+[![CI](https://github.com/sharifuzzamanmd/clinical-risk-api/actions/workflows/ci.yml/badge.svg)](https://github.com/sharifuzzamanmd/clinical-risk-api/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -36,7 +36,7 @@ flowchart LR
 ## Quickstart
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/clinical-risk-api.git
+git clone https://github.com/sharifuzzamanmd/clinical-risk-api.git
 cd clinical-risk-api
 docker compose up --build        # trains the model during the build, serves on :8000
 ```
