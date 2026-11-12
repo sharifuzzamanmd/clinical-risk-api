@@ -150,4 +150,4 @@ Rubini, L., Soundarapandian, P., & Eswaran, P. (2015). *Chronic Kidney Disease* 
 ## Author
 
 **Md Sharifuzzaman**: ML engineer and researcher in explainable AI for healthcare.
-[LinkedIn](#) · [Google Scholar](#) · [Website](#)
+[LinkedIn](https://www.linkedin.com/in/md-sharifuzzaman-sourov/) · [Google Scholar](https://scholar.google.com/citations?user=JUlEjLwAAAAJ&hl=en) · [Website](https://sharifuzzamanmd.github.io/)
